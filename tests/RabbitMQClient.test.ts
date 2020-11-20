@@ -96,6 +96,15 @@ describe('RabbitMQClient', () => {
       expect(mockChannel.assertExchange).toHaveBeenCalledWith('my-namespace', 'fanout', { durable: true });
     });
 
+    it('should create the exchange just once', async () => {
+      await client.connect();
+      client.publish('my-namespace', 1);
+      client.publish('my-namespace', 1);
+      await sleep(testRetryTimeout);
+
+      expect(mockChannel.assertExchange).toHaveBeenCalledTimes(1);
+    });
+
     const durableTestCases = [
       [undefined, true],
       [true, true],
@@ -323,10 +332,20 @@ describe('RabbitMQClient', () => {
 
     it('should create a durable direct exchange with the name provided inside the construction params', async () => {
       await client.connect();
-      await client.publish('my-nsp', 'whatever');
+      client.publish('my-nsp', 'whatever');
       await sleep(testRetryTimeout);
 
       expect(mockChannel.assertExchange).toHaveBeenCalledWith('direct-exchange', 'direct', { durable: true });
+    });
+
+    it('should create the exchange just once', async () => {
+      await client.connect();
+      client.publish('my-nsp', 'whatever');
+      client.publish('my-nsp', 'whatever');
+
+      await sleep(testRetryTimeout);
+
+      expect(mockChannel.assertExchange).toHaveBeenCalledTimes(1);
     });
 
     it('should publish a message with the namespace as routingKey in the newly created direct exchange', async () => {
