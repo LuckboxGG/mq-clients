@@ -45,6 +45,7 @@ class RabbitMQClient implements MQClient {
   private queue: PQueue;
   private setupConnectionPromise: Promise<void>;
   private hasManuallyUnsubscribed: boolean;
+  private explicitlyCreatedExchanges: Array<string>;
 
   constructor(params: ConstructorParams) {
     this.amqpConfig = params.amqp !== undefined ? params.amqp : {};
@@ -71,6 +72,7 @@ class RabbitMQClient implements MQClient {
     this.queue = new PQueue({ concurrency: 1 });
     this.setupConnectionPromise = null;
     this.hasManuallyUnsubscribed = false;
+    this.explicitlyCreatedExchanges = [];
   }
 
   async connect(): Promise<void> {
@@ -93,7 +95,7 @@ class RabbitMQClient implements MQClient {
       : namespace;
 
     await this.saveSubscription(subscriptionKey, callback);
-    await this.createExchange(namespace);
+    await this.createExchangeIfNecessary(namespace);
     await this.createQueueAndBindItToExchange(namespace);
   }
 
@@ -164,7 +166,7 @@ class RabbitMQClient implements MQClient {
 
   private async recreateSubscriptions() {
     for (const [namespace] of this.subscriptions) {
-      await this.createExchange(namespace);
+      await this.createExchangeIfNecessary(namespace);
       await this.createQueueAndBindItToExchange(namespace);
     }
   }
@@ -172,7 +174,7 @@ class RabbitMQClient implements MQClient {
   private async publishSynchronously(namespace: string, data: any) {
     const tryToSendMessageLoop = async (): Promise<void> => {
       try {
-        await this.createExchange(namespace);
+        await this.createExchangeIfNecessary(namespace);
         await this.publishDataInExchange(data, namespace);
 
         return;
@@ -196,16 +198,27 @@ class RabbitMQClient implements MQClient {
     this.subscriptions.set(key, callbacks);
   }
 
-  private async createExchange(exchange: string) {
+  private async createExchangeIfNecessary(exchange: string) {
     const config = {
       durable: this.exchangeConfig.durable !== undefined ? this.exchangeConfig.durable : true,
     };
 
+    let exchangeName: string;
+    let exchangeType: ExchangeType;
     if (this.isExchangeInDirectType()) {
-      await this.channel.assertExchange(this.exchangeConfig.name, ExchangeType.Direct, config);
+      exchangeName = this.exchangeConfig.name;
+      exchangeType = ExchangeType.Direct;
     } else {
-      await this.channel.assertExchange(exchange, ExchangeType.Fanout, config);
+      exchangeName = exchange;
+      exchangeType = ExchangeType.Fanout;
     }
+
+    if (this.explicitlyCreatedExchanges.includes(exchangeName)) {
+      return;
+    }
+
+    await this.channel.assertExchange(exchangeName, exchangeType, config);
+    this.explicitlyCreatedExchanges.push(exchangeName);
   }
 
   private isExchangeInDirectType() {
