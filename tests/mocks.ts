@@ -109,6 +109,7 @@ const mockAmqplib = amqplib as jest.Mocked<typeof amqplib>;
 function simulateConnectionProblem() {
   const connectionCloseErr: any = new Error('Connection closed: 320 (CONNECTION-FORCED) with message "CONNECTION_FORCED - broker forced connection closure with reason \'shutdown\'"');
   connectionCloseErr.code = 320;
+
   mockConnection.emit('error', connectionCloseErr);
   mockConnection.emit('close');
 }
@@ -116,8 +117,20 @@ function simulateConnectionProblem() {
 function simulateChannelProblem() {
   const connectionCloseErr: any = new Error('Connection closed: 320 (CONNECTION-FORCED) with message "CONNECTION_FORCED - broker forced connection closure with reason \'shutdown\'"');
   connectionCloseErr.code = 320;
+
   mockChannel.emit('error', connectionCloseErr);
   mockChannel.emit('close');
+}
+
+function simulateMissingExchange(exchange: string) {
+  const missingExchangeErr: any = new Error(`Channel closed by server: 404 (NOT-FOUND) with message "NOT_FOUND - no exchange '${exchange}' in vhost '/'"`);
+  missingExchangeErr.code = 404;
+  missingExchangeErr.classId = 60;
+  missingExchangeErr.methodId = 40;
+
+  mockChannel.publish.mockImplementationOnce(() => {
+    throw missingExchangeErr;
+  });
 }
 
 function resetMocks() {
@@ -152,4 +165,5 @@ export {
   resetMocks,
   simulateConnectionProblem,
   simulateChannelProblem,
+  simulateMissingExchange,
 };

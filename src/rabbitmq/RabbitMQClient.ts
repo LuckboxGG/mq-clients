@@ -45,7 +45,7 @@ class RabbitMQClient implements MQClient {
   private queue: PQueue;
   private setupConnectionPromise: Promise<void>;
   private hasManuallyUnsubscribed: boolean;
-  private explicitlyCreatedExchanges: Array<string>;
+  private existingExchanges: Array<string>;
 
   constructor(params: ConstructorParams) {
     this.amqpConfig = params.amqp !== undefined ? params.amqp : {};
@@ -72,7 +72,7 @@ class RabbitMQClient implements MQClient {
     this.queue = new PQueue({ concurrency: 1 });
     this.setupConnectionPromise = null;
     this.hasManuallyUnsubscribed = false;
-    this.explicitlyCreatedExchanges = [];
+    this.existingExchanges = [];
   }
 
   async connect(): Promise<void> {
@@ -175,12 +175,16 @@ class RabbitMQClient implements MQClient {
     const tryToSendMessageLoop = async (): Promise<void> => {
       try {
         await this.createExchangeIfNecessary(namespace);
-        await this.publishDataInExchange(data, namespace);
+        this.publishDataInExchange(data, namespace);
 
         return;
       } catch (err) {
         this.logError(err);
         await this.setupConnection();
+
+        if (err.code === 404) {
+          this.existingExchanges.splice(this.existingExchanges.indexOf(namespace), 1);
+        }
       }
 
       return tryToSendMessageLoop();
@@ -213,23 +217,23 @@ class RabbitMQClient implements MQClient {
       exchangeType = ExchangeType.Fanout;
     }
 
-    if (this.explicitlyCreatedExchanges.includes(exchangeName)) {
+    if (this.existingExchanges.includes(exchangeName)) {
       return;
     }
 
     await this.channel.assertExchange(exchangeName, exchangeType, config);
-    this.explicitlyCreatedExchanges.push(exchangeName);
+    this.existingExchanges.push(exchangeName);
   }
 
   private isExchangeInDirectType() {
     return this.exchangeConfig.type === ExchangeType.Direct;
   }
 
-  private async publishDataInExchange(data: any, namespace: string) {
+  private publishDataInExchange(data: any, namespace: string) {
     if (this.isExchangeInDirectType()) {
-      await this.channel.publish(this.exchangeConfig.name, namespace, this.toBuffer(data));
+      this.channel.publish(this.exchangeConfig.name, namespace, this.toBuffer(data));
     } else {
-      await this.channel.publish(namespace, '', this.toBuffer(data));
+      this.channel.publish(namespace, '', this.toBuffer(data));
     }
   }
 
@@ -278,7 +282,7 @@ class RabbitMQClient implements MQClient {
 
   private logError(err: Error) {
     if (this.debug) {
-      console.error(`[${this.constructor.name}]`, err);
+      console.error(`[${this.constructor.name}]`, err, Object.keys(err), (err as any).code);
     }
   }
 }
