@@ -182,7 +182,7 @@ class RabbitMQClient implements MQClient {
         this.logError(err);
         await this.setupConnection();
 
-        if (err.code === 404) {
+        if (err.code === 404 && err.classId === 60 && err.methodId === 40) {
           this.existingExchanges.splice(this.existingExchanges.indexOf(namespace), 1);
         }
       }
