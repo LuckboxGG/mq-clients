@@ -13,6 +13,7 @@ import {
   resetMocks,
   simulateConnectionProblem,
   simulateChannelProblem,
+  simulateMissingExchange,
 } from './mocks';
 
 import {
@@ -399,6 +400,20 @@ describe('RabbitMQClient', () => {
 
       expect(mockCallback1).toHaveBeenCalledWith(dummyData);
       expect(mockCallback2).not.toHaveBeenCalled();
+    });
+
+    it('should recreate the exchange if it goes missing for some reason', async () => {
+      await client.connect();
+
+      await client.publish('my-namespace1', 'test');
+      simulateMissingExchange('my-namespace1');
+      mockChannel.assertExchange.mockClear();
+
+      await client.publish('my-namespace1', 'test');
+
+      await sleep(testRetryTimeout);
+
+      expect(mockChannel.assertExchange).toHaveBeenCalledTimes(1);
     });
   });
 
