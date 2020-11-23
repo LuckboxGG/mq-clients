@@ -282,7 +282,7 @@ class RabbitMQClient implements MQClient {
 
   private logError(err: Error) {
     if (this.debug) {
-      console.error(`[${this.constructor.name}]`, err, Object.keys(err), (err as any).code);
+      console.error(`[${this.constructor.name}]`, err);
     }
   }
 }
