@@ -165,7 +165,14 @@ class RabbitMQClient implements MQClient {
   };
 
   private async recreateSubscriptions() {
-    for (const [namespace] of this.subscriptions) {
+    for (const [subscriptionKey] of this.subscriptions) {
+      let namespace;
+      if (this.isExchangeInDirectType()) {
+        namespace = subscriptionKey.split('#', 2)[1];
+      } else {
+        namespace = subscriptionKey;
+      }
+
       await this.createExchangeIfNecessary(namespace);
       await this.createQueueAndBindItToExchange(namespace);
     }
