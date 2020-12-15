@@ -433,19 +433,55 @@ describe('RabbitMQClient', () => {
       expect(mockConnection.createChannel).toHaveBeenCalled();
     });
 
-    it(`should recreate the existing queues as they were before the connection was closed after ${simulateProblem.name}`, async () => {
-      await client.connect();
-      await client.subscribe('nsp1', noop);
-      await client.subscribe('nsp2', noop);
-      await client.subscribe('nsp3', noop);
+    it(`should recreate the existing queues and bind them to the direct exchange using the namespace as routingKey when calling subscribe ${simulateProblem.name}`, async () => {
+      const directModeRabbitMqClient = new RabbitMQClient(createConstructorParams({
+        exchange: {
+          type: 'direct',
+          name: 'my-exchange-name',
+        },
+      }));
+
+      const mockQueue1 = createMockQueue();
+      mockChannel.assertQueue.mockResolvedValueOnce(mockQueue1);
+
+      const mockQueue2 = createMockQueue();
+      mockChannel.assertQueue.mockResolvedValueOnce(mockQueue2);
+
+      await directModeRabbitMqClient.connect();
+      await directModeRabbitMqClient.subscribe('nsp1', noop);
+      await directModeRabbitMqClient.subscribe('nsp2', noop);
       mockChannel.bindQueue.mockClear();
 
       simulateProblem();
       await sleep(100);
 
-      expect(mockChannel.bindQueue).toHaveBeenNthCalledWith(1, expect.anything(), 'nsp1', expect.anything());
-      expect(mockChannel.bindQueue).toHaveBeenNthCalledWith(2, expect.anything(), 'nsp2', expect.anything());
-      expect(mockChannel.bindQueue).toHaveBeenNthCalledWith(3, expect.anything(), 'nsp3', expect.anything());
+      expect(mockChannel.bindQueue).toHaveBeenNthCalledWith(1, mockQueue1.queue, 'my-exchange-name', 'nsp1');
+      expect(mockChannel.bindQueue).toHaveBeenNthCalledWith(2, mockQueue2.queue, 'my-exchange-name', 'nsp2');
+    });
+
+    it(`should recreate the existing queues and bind them to the fanout exchange using the namespace as routingKey when calling subscribe ${simulateProblem.name}`, async () => {
+      const fanoutModeRabbitMqClient = new RabbitMQClient(createConstructorParams({
+        exchange: {
+          type: 'fanout',
+        },
+      }));
+
+      const mockQueue1 = createMockQueue();
+      mockChannel.assertQueue.mockResolvedValueOnce(mockQueue1);
+
+      const mockQueue2 = createMockQueue();
+      mockChannel.assertQueue.mockResolvedValueOnce(mockQueue2);
+
+      await fanoutModeRabbitMqClient.connect();
+      await fanoutModeRabbitMqClient.subscribe('nsp1', noop);
+      await fanoutModeRabbitMqClient.subscribe('nsp2', noop);
+      mockChannel.bindQueue.mockClear();
+
+      simulateProblem();
+      await sleep(100);
+
+      expect(mockChannel.bindQueue).toHaveBeenNthCalledWith(1, mockQueue1.queue, 'nsp1', '');
+      expect(mockChannel.bindQueue).toHaveBeenNthCalledWith(2, mockQueue2.queue, 'nsp2', '');
     });
   });
 
