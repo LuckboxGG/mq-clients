@@ -30,7 +30,7 @@
     "jest": "^24.9.0",
     "jest-serial-runner": "^1.1.0",
     "lint-staged": "^10.0.1",
-    "lodash": "^4.17.15",
+    "lodash": "^4.17.20",
     "ts-essentials": "^6.0.5",
     "ts-jest": "^24.2.0",
     "tsc-watch": "^4.1.0"
