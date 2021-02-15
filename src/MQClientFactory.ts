@@ -10,9 +10,7 @@ type Config = {
 }
 
 type TogglingConfig = Config & {
-  toggling: {
-    enabled: boolean;
-  };
+  togglingEnabled: boolean;
 }
 
 export class MQClientFactory {
@@ -20,9 +18,9 @@ export class MQClientFactory {
   create(config: TogglingConfig): TogglingMQClient;
   create(config: any): any {
     const client: MQClient = new RabbitMQClient(config.rabbitMQ);
-    if (config.toggling !== undefined) {
+    if (config.togglingEnabled !== undefined) {
       return new DefaultTogglingMQClient({
-        enabled: config.toggling.enabled,
+        enabled: config.togglingEnabled,
         mqClient: client,
       });
     }
