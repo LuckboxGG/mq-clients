@@ -1,6 +1,6 @@
 {
   "name": "@luckbox/mq-clients",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -48,7 +48,7 @@
   },
   "dependencies": {
     "typescript": "^3.7.5",
-    "amqplib": "^0.5.5",
+    "amqplib": "^0.7.1",
     "p-queue": "^6.2.1"
   },
   "repository": {
