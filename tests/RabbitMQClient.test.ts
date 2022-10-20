@@ -257,7 +257,7 @@ describe('RabbitMQClient', () => {
       expect(mockCallback).toHaveBeenCalledWith({ bar: 'foo' });
     });
 
-    it('should explicitly acknowledge the message once of all of the subscribers have been invoked', async () => {
+    it('should acknowledge the message once of all of the subscribers have been invoked successfully', async () => {
       const mockQueue = createMockQueue();
       mockChannel.assertQueue.mockResolvedValueOnce(mockQueue);
 
@@ -276,6 +276,21 @@ describe('RabbitMQClient', () => {
           routingKey: '',
         },
       }));
+    });
+
+    it('should not acknowledge the message if some of the subscribers has thrown', async () => {
+      const mockQueue = createMockQueue();
+      mockChannel.assertQueue.mockResolvedValueOnce(mockQueue);
+
+      await client.connect();
+
+      await client.subscribe('my-namespace', noop);
+      await client.subscribe('my-namespace', () => Promise.reject(new Error('Something went wrong')));
+
+      triggerMockChannelConsumer('my-namespace', '', mockQueue.queue, { bar: 'foo' });
+      await sleep(testRetryTimeout);
+
+      expect(mockChannel.ack).not.toHaveBeenCalled();
     });
 
     it('should not kill the process when the message fails to be parsed', async () => {

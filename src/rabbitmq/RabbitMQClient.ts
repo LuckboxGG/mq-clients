@@ -283,17 +283,22 @@ class RabbitMQClient implements MQClient {
       const subscriptionKey = this.isExchangeInDirectType() ? `${msg.fields.exchange}#${msg.fields.routingKey}` : msg.fields.exchange;
 
       const callbacks = this.subscriptions.get(subscriptionKey);
+      let hasThrown = false;
+
       if (callbacks && callbacks.length) {
         for (const callback of callbacks) {
           try {
             await callback(parsed);
           } catch (error) {
             this.logger.error(`A callback for namespace '${namespace}' has thrown an exception - ${tagString(error instanceof Error ? error.stack : error.toString(), Tag.PII)}`);
+            hasThrown = true;
           }
         }
       }
 
-      this.channel.ack(msg);
+      if (!hasThrown) {
+        this.channel.ack(msg);
+      }
     });
   }
 
