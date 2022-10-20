@@ -2,8 +2,9 @@ import assert from 'assert';
 import amqplib from 'amqplib';
 import PQueue from 'p-queue';
 
-import { MQClient, DataPayload, CallbackFunc } from '../MQClient';
+import { CallbackFunc, DataPayload, MQClient } from '../MQClient';
 import makeEnum from '../utils/makeEnum';
+import { Adapters, Logger, LoggerFactory, SupportedLogLevels, Tag, tagString } from '@luckbox/logger-factory';
 
 const ExchangeType = makeEnum({
   Fanout: 'fanout',
@@ -29,6 +30,7 @@ interface ConstructorParams {
   queue?: QueueConfig;
   retryTimeout?: number;
   debug?: boolean;
+  logger?: Logger;
 }
 
 class RabbitMQClient implements MQClient {
@@ -37,6 +39,7 @@ class RabbitMQClient implements MQClient {
   private readonly debug: boolean;
   private readonly exchangeConfig: ExchangeConfig;
   private readonly queueConfig: QueueConfig;
+  private readonly logger: Logger;
 
   private connection: amqplib.Connection;
   private channel: amqplib.Channel;
@@ -51,6 +54,17 @@ class RabbitMQClient implements MQClient {
     this.amqpConfig = params.amqp !== undefined ? params.amqp : {};
     this.retryTimeout = params.retryTimeout !== undefined ? params.retryTimeout : 1000;
     this.debug = params.debug !== undefined ? params.debug : true;
+    this.logger = params.logger ?? new LoggerFactory({
+      adapters: [
+        {
+          name: Adapters.Console,
+          config: {
+            skipTimestamps: false,
+            logLevel: params.debug ? SupportedLogLevels.Error : SupportedLogLevels.System,
+          },
+        },
+      ],
+    }).create(this.constructor.name);
 
     if (params.exchange.type === ExchangeType.Direct) {
       assert(
@@ -81,25 +95,25 @@ class RabbitMQClient implements MQClient {
     this.hasBeenConnected = true;
   }
 
-  publish(namespace: string, data: DataPayload) {
+  publish(namespace: string, data: DataPayload): void {
     assert(this.hasBeenConnected, 'You must connect() first!');
 
     this.publishSynchronously(namespace, data);
   }
 
-  async subscribe(namespace: string, callback: CallbackFunc) {
+  async subscribe(namespace: string, callback: CallbackFunc): Promise<void> {
     assert(this.connection, 'You must connect() first!');
 
     const subscriptionKey = this.isExchangeInDirectType()
       ? `${this.exchangeConfig.name}#${namespace}`
       : namespace;
 
-    await this.saveSubscription(subscriptionKey, callback);
+    this.saveSubscription(subscriptionKey, callback);
     await this.createExchangeIfNecessary(namespace);
     await this.createQueueAndBindItToExchange(namespace);
   }
 
-  async unsubscribe() {
+  async unsubscribe(): Promise<void> {
     assert(this.connection, 'You must connect() first!');
     assert(this.subscriptions.size, 'You must subscribe() first!');
 
@@ -119,7 +133,7 @@ class RabbitMQClient implements MQClient {
         this.bindListeners();
         await this.recreateSubscriptions();
       } catch (err) {
-        this.logError(err);
+        this.logger.error(err);
         await this.sleep(this.retryTimeout);
         return setupConnectionLoop();
       }
@@ -158,7 +172,7 @@ class RabbitMQClient implements MQClient {
     }
 
     if (err) {
-      this.logError(err);
+      this.logger.error(err);
     }
 
     await this.setupConnection();
@@ -178,7 +192,7 @@ class RabbitMQClient implements MQClient {
     }
   }
 
-  private async publishSynchronously(namespace: string, data: any) {
+  private async publishSynchronously(namespace: string, data: DataPayload) {
     const tryToSendMessageLoop = async (): Promise<void> => {
       try {
         await this.createExchangeIfNecessary(namespace);
@@ -186,7 +200,7 @@ class RabbitMQClient implements MQClient {
 
         return;
       } catch (err) {
-        this.logError(err);
+        this.logger.error(err);
         await this.setupConnection();
 
         if (err.code === 404 && err.classId === 60 && err.methodId === 40) {
@@ -262,35 +276,38 @@ class RabbitMQClient implements MQClient {
       try {
         parsed = this.parseBuffer(msg.content);
       } catch (err) {
-        this.logError(err);
+        this.logger.error(err);
         return;
       }
 
-      const subscriptionKey = this.isExchangeInDirectType()
-        ? `${msg.fields.exchange}#${msg.fields.routingKey}`
-        : msg.fields.exchange;
+      const subscriptionKey = this.isExchangeInDirectType() ? `${msg.fields.exchange}#${msg.fields.routingKey}` : msg.fields.exchange;
 
       const callbacks = this.subscriptions.get(subscriptionKey);
+      let hasThrown = false;
+
       if (callbacks && callbacks.length) {
         for (const callback of callbacks) {
-          callback(parsed);
+          try {
+            await callback(parsed);
+          } catch (error) {
+            this.logger.error(`A callback for namespace '${namespace}' has thrown an exception - ${tagString(error instanceof Error ? error.stack : error.toString(), Tag.PII)}`);
+            hasThrown = true;
+          }
         }
       }
-    }, { noAck: true });
+
+      if (!hasThrown) {
+        this.channel.ack(msg);
+      }
+    });
   }
 
-  private toBuffer(data: any) {
+  private toBuffer(data: unknown) {
     return Buffer.from(JSON.stringify(data));
   }
 
   private parseBuffer(buffer: Buffer) {
     return JSON.parse(buffer.toString());
-  }
-
-  private logError(err: Error) {
-    if (this.debug) {
-      console.error(`[${this.constructor.name}]`, err);
-    }
   }
 }
 

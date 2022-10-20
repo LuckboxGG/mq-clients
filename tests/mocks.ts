@@ -9,6 +9,7 @@ mockChannel.assertQueue = jest.fn();
 mockChannel.bindQueue = jest.fn();
 mockChannel.consume = jest.fn();
 mockChannel.close = jest.fn();
+mockChannel.ack = jest.fn();
 
 let mockChannelListeners: Array<any> = [];
 mockChannel.on = jest.fn();
@@ -145,6 +146,7 @@ function resetMocks() {
   mockChannel.bindQueue.mockReset();
   mockChannel.consume.mockClear();
   mockChannel.close.mockClear();
+  mockChannel.ack.mockClear();
 
   resetMockConnectionListeners();
   resetMockChannelConsumers();

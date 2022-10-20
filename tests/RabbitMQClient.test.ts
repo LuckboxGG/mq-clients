@@ -46,7 +46,7 @@ function createConstructorParams(overrides: DeepPartial<RabbitMQClientConstructo
 const sleep = (msec: number) => new Promise((resolve) => setTimeout(resolve, msec));
 
 // eslint-disable-next-line @typescript-eslint/no-empty-function
-const noop = () => { };
+const noop = (): void => {};
 
 describe('RabbitMQClient', () => {
   let client: RabbitMQClient;
@@ -158,12 +158,6 @@ describe('RabbitMQClient', () => {
       expect(mockChannel.publish).toHaveBeenCalledWith(expect.anything(), expect.anything(), Buffer.from(JSON.stringify(dummyPayload)));
     });
 
-    it('should return undefined', async () => {
-      await client.connect();
-
-      expect(client.publish('my-namespace', 1)).toBeUndefined();
-    });
-
     it('should automatically attempt to reconnect in case the connection is dropped', async () => {
       await client.connect();
 
@@ -222,7 +216,7 @@ describe('RabbitMQClient', () => {
       await client.connect();
       await client.subscribe('my-namespace', noop);
 
-      expect(mockChannel.consume).toHaveBeenCalledWith(mockQueue.queue, expect.anything(), { noAck: true });
+      expect(mockChannel.consume).toHaveBeenCalledWith(mockQueue.queue, expect.anything());
     });
 
     it('should invoke the callback passed to subscribe when a message is received', async () => {
@@ -239,6 +233,64 @@ describe('RabbitMQClient', () => {
       await sleep(testRetryTimeout);
 
       expect(mockCallback).toHaveBeenCalledWith(dummyData);
+    });
+
+    it('should not fail if some of the subscribers has thrown an error', async () => {
+      const mockQueue = createMockQueue();
+      mockChannel.assertQueue.mockResolvedValueOnce(mockQueue);
+
+      await client.connect();
+
+      const mockCallback = jest.fn();
+      const promiseRejectingCallback = () => Promise.reject(new Error('Something bad has happened'));
+      const errorThrowingCallback = () => {
+        throw new Error('Something bad has happened');
+      };
+
+      await client.subscribe('my-namespace', promiseRejectingCallback);
+      await client.subscribe('my-namespace', errorThrowingCallback);
+      await client.subscribe('my-namespace', mockCallback);
+
+      triggerMockChannelConsumer('my-namespace', '', mockQueue.queue, { bar: 'foo' });
+      await sleep(testRetryTimeout);
+
+      expect(mockCallback).toHaveBeenCalledWith({ bar: 'foo' });
+    });
+
+    it('should acknowledge the message once of all of the subscribers have been invoked successfully', async () => {
+      const mockQueue = createMockQueue();
+      mockChannel.assertQueue.mockResolvedValueOnce(mockQueue);
+
+      await client.connect();
+
+      await client.subscribe('my-namespace', noop);
+      await client.subscribe('my-namespace', noop);
+
+      triggerMockChannelConsumer('my-namespace', '', mockQueue.queue, { bar: 'foo' });
+      await sleep(testRetryTimeout);
+
+      expect(mockChannel.ack).toHaveBeenCalledWith(expect.objectContaining({
+        content: Buffer.from(JSON.stringify({ bar: 'foo' })),
+        fields: {
+          exchange: 'my-namespace',
+          routingKey: '',
+        },
+      }));
+    });
+
+    it('should not acknowledge the message if some of the subscribers has thrown', async () => {
+      const mockQueue = createMockQueue();
+      mockChannel.assertQueue.mockResolvedValueOnce(mockQueue);
+
+      await client.connect();
+
+      await client.subscribe('my-namespace', noop);
+      await client.subscribe('my-namespace', () => Promise.reject(new Error('Something went wrong')));
+
+      triggerMockChannelConsumer('my-namespace', '', mockQueue.queue, { bar: 'foo' });
+      await sleep(testRetryTimeout);
+
+      expect(mockChannel.ack).not.toHaveBeenCalled();
     });
 
     it('should not kill the process when the message fails to be parsed', async () => {
@@ -293,7 +345,7 @@ describe('RabbitMQClient', () => {
       await sleep(testRetryTimeout);
 
       expect(mockChannel.consume).toHaveBeenCalledTimes(2);
-      expect(mockChannel.consume).toHaveBeenNthCalledWith(2, mockQueue.queue, expect.anything(), { noAck: true });
+      expect(mockChannel.consume).toHaveBeenNthCalledWith(2, mockQueue.queue, expect.anything());
     });
 
     it('should not invoke the callback passed to subscribe when a malformed message is received after a reconnect', async () => {
