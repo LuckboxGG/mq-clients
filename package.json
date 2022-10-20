@@ -49,6 +49,7 @@
     ]
   },
   "dependencies": {
+    "@luckbox/logger-factory": "^4.0.0",
     "amqplib": "^0.8.0",
     "p-queue": "^6.2.1"
   },
