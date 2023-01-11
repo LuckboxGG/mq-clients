@@ -252,9 +252,13 @@ class RabbitMQClient implements MQClient {
 
   private publishDataInExchange(data: any, namespace: string) {
     if (this.isExchangeInDirectType()) {
-      this.channel.publish(this.exchangeConfig.name, namespace, this.toBuffer(data));
+      this.channel.publish(this.exchangeConfig.name, namespace, this.toBuffer(data), {
+        persistent: true,
+      });
     } else {
-      this.channel.publish(namespace, '', this.toBuffer(data));
+      this.channel.publish(namespace, '', this.toBuffer(data), {
+        persistent: true,
+      });
     }
   }
 
