@@ -17,7 +17,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@luckbox/eslint-rules": "^5.0.1",
+    "@luckbox/eslint-rules": "^5.0.2",
     "@types/amqplib": "^0.8.2",
     "@types/core-js": "^2.5.2",
     "@types/jest": "^29.2.0",
