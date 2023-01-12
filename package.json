@@ -1,6 +1,6 @@
 {
   "name": "@luckbox/mq-clients",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -17,7 +17,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@luckbox/eslint-rules": "^2.2.1",
+    "@luckbox/eslint-rules": "^5.0.2",
     "@types/amqplib": "^0.8.2",
     "@types/core-js": "^2.5.2",
     "@types/jest": "^29.2.0",

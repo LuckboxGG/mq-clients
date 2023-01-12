@@ -132,7 +132,7 @@ describe('RabbitMQClient', () => {
       client.publish('my-namespace', 1);
       await sleep(100);
 
-      expect(mockChannel.publish).toHaveBeenCalledWith('my-namespace', '', expect.anything());
+      expect(mockChannel.publish).toHaveBeenCalledWith('my-namespace', '', expect.anything(), { persistent: true });
     });
 
     it('should publish the message as a buffer with payload of the json serialized message', async () => {
@@ -142,7 +142,7 @@ describe('RabbitMQClient', () => {
       client.publish('my-namespace', dummyPayload);
       await sleep(testRetryTimeout);
 
-      expect(mockChannel.publish).toHaveBeenCalledWith(expect.anything(), expect.anything(), Buffer.from(JSON.stringify(dummyPayload)));
+      expect(mockChannel.publish).toHaveBeenCalledWith(expect.anything(), expect.anything(), Buffer.from(JSON.stringify(dummyPayload)), { persistent: true });
     });
 
     it('should retry to send the message when the connection is down', async () => {
@@ -155,7 +155,7 @@ describe('RabbitMQClient', () => {
       client.publish('my-namespace', dummyPayload);
       await sleep(testRetryTimeout);
 
-      expect(mockChannel.publish).toHaveBeenCalledWith(expect.anything(), expect.anything(), Buffer.from(JSON.stringify(dummyPayload)));
+      expect(mockChannel.publish).toHaveBeenCalledWith(expect.anything(), expect.anything(), Buffer.from(JSON.stringify(dummyPayload)), { persistent: true });
     });
 
     it('should automatically attempt to reconnect in case the connection is dropped', async () => {
@@ -406,7 +406,7 @@ describe('RabbitMQClient', () => {
       client.publish('my-namespace', 1);
       await sleep(100);
 
-      expect(mockChannel.publish).toHaveBeenCalledWith('direct-exchange', 'my-namespace', expect.anything());
+      expect(mockChannel.publish).toHaveBeenCalledWith('direct-exchange', 'my-namespace', expect.anything(), { persistent: true });
     });
 
     it('should bind the anonymous queue to the direct exchange using the namespace as routingKey when calling subscribe', async () => {
